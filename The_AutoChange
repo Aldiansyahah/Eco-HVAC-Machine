@@ -1,0 +1,45 @@
+
+MODE (Probe:=Probe, Set:= Set-NeutralBand/2, Dif:=NeutralBand);
+current_mode:= NOT MODE.Out;
+
+IF current_mode=HEATING THEN
+	
+	current_set:= Set-NeutralBand/2;
+	current_dif:= difh;
+	
+	
+ELSE	
+		current_set := Set+NeutralBand/2;
+		current_dif:= difc;
+		
+END_IF;
+
+REG (Enable:=Enable,Set:=current_set,Dif:=current_dif,Probe:=Probe,HC:=current_mode);
+
+OutC:= (current_mode=COOLING) AND REG.OutB;
+OutH:= (current_mode=HEATING) AND REG.OutB;
+
+PrAlrm :=REG.PrAlrm;
+
+IF PrAlrm THEN
+
+	OutLC:= 0;
+	OutLH:= 0;
+  
+//Cooling Mode
+ELSIF (current_mode=COOLING) THEN
+	tmp_dint:=(Probe-current_set)*1000/TO_DINT(current_dif);
+	OutLC:= TO_INT(MAX(0,MIN(1000,tmp_dint)));
+	OutLH:= 0;
+	
+ELSE
+	tmp_dint:=(current_set-Probe)*1000/TO_DINT(current_dif);
+	OutLC:= 0;
+	OutLH:= TO_INT(MAX(0,MIN(1000,tmp_dint)));
+
+END_IF;
+
+
+
+
+
