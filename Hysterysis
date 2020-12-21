@@ -1,0 +1,38 @@
+
+Error := Probe - Set; (* cooling type *)
+
+
+(* thermostat out *)
+
+IF Error<0 THEN 
+
+	Out := FALSE;
+
+ELSIF TO_DINT(Error-Dif) > 0 THEN 
+
+	Out := TRUE;
+
+END_IF;
+
+
+(* broken probe alarm and out *)
+
+IF ( Probe  = -32768 ) OR ( Set  = -32768 ) THEN 
+
+		Out := FALSE;
+
+		PrAlrm := TRUE;
+
+	ELSE
+
+		PrAlrm := FALSE;
+
+END_IF;
+
+
+
+
+
+
+
+
