@@ -1,0 +1,49 @@
+(* type of Thermostat *)
+
+IF HC THEN
+
+		Error := Set - Probe; (* heating type *)
+
+	ELSE
+	
+		Error := Probe - Set; (* cooling type *)
+
+END_IF;
+
+
+
+(* thermostat out *)
+
+IF Error<0 OR NOT Enable THEN 
+
+	OutI :=   0; 
+	OutB := FALSE;
+
+ELSIF TO_DINT(Error-Dif) > 0 THEN 
+
+	OutI := 100; 
+	OutB := TRUE;
+
+END_IF;
+
+
+(* broken probe alarm and out *)
+
+IF ( Probe  = -32768 ) OR ( Set  = -32768 ) THEN 
+
+		OutI := 0;
+		OutB := FALSE;
+
+		PrAlrm := TRUE;
+
+	ELSE
+
+		PrAlrm := FALSE;
+
+END_IF;
+
+
+
+
+
+
