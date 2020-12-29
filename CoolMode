@@ -1,0 +1,34 @@
+(* COOL MODE 
+ 
+ Status := xProbe - xSetPoint;
+
+ *)
+
+SetMax := SetPoint + (xDiff/10);
+SetMin := SetPoint - (xDiff/10);
+
+	IF TO_DINT(xProbeSens - SetMin) <= 0 THEN
+
+		xOut := FALSE;
+		
+	ELSE IF TO_DINT(xProbeSens - SetMax) >= 0 THEN
+	
+		xOut := TRUE;
+	
+	END_IF;
+
+
+(* broken probe alarm and Alarm Feedback *)
+
+IF (xProbeSens  = -32768) OR AlrmFeedback THEN 
+		
+	xOut   := FALSE;
+	PrAlrm := TRUE;
+
+	ELSE
+		
+	PrAlrm := FALSE;
+	
+END_IF;
+
+END_IF;
