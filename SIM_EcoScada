@@ -1,0 +1,480 @@
+'Variables available only for this group can be declared here.
+
+
+'The code configured here is executed while the condition configured in the Execution field is TRUE.
+
+'General
+$Simulation.CycleOn = RunSimulation()
+
+
+
+
+'Features_Animations
+$Features_Animations.HyperLinkWeb = $OEM.URL
+
+
+
+'Industries_Machinery
+Dim Industries_Machinery_PartsProgress, Industries_Machinery_TimeProgress
+If $Industries_Machinery.State = 1 Then
+	$Industries_Machinery.Ramp = $Simulation.Ramp
+	$Industries_Machinery.SinWave = $Simulation.SinWave
+	If $Num(Industries_Machinery_Ramp)>=$Industries_Machinery.Ramp Then
+		$Industries_Machinery.PartsProducedActual = $Industries_Machinery.PartsProducedActual+1
+		$Industries_Machinery.LifeTimeProduction = $Industries_Machinery.LifeTimeProduction +1
+	End If	
+	Industries_Machinery_Ramp = $Industries_Machinery.Ramp
+End If	
+$Industries_Machinery.TimeToProduceActual = DateDiffSec($Industries_Machinery.JobNumber->TimeStamp, Now)
+If $Industries_Machinery.PartsProducedActual >= $Industries_Machinery.PartsProducedTarget Then
+	$Industries_Machinery.PartsProducedActual = 0
+	$Industries_Machinery.JobNumber = $Industries_Machinery.JobNumber+1
+End If
+If $Industries_Machinery.TimeToProduceActual > $Industries_Machinery.TimeToProduceTarget Then
+	$Industries_Machinery.Status = 2
+Else
+	Industries_Machinery_PartsProgress = ($Industries_Machinery.PartsProducedActual - $Industries_Machinery.PartsProducedTarget) / $Industries_Machinery.PartsProducedTarget
+	Industries_Machinery_TimeProgress = ($Industries_Machinery.TimeToProduceActual - $Industries_Machinery.TimeToProduceTarget) / $Industries_Machinery.TimeToProduceTarget
+	If $Num(Industries_Machinery_TimeProgress)>$Num(Industries_Machinery_PartsProgress) Then
+		$Industries_Machinery.Status = 1
+	Else
+		$Industries_Machinery.Status = 0
+	End If
+End If	
+
+
+
+
+'Solutions_PackML
+
+Dim Solutions_PackML_TS, Solutions_PackML_DelayInSeconds
+
+Solutions_PackML_TS = $Solutions_PackML.Status_StateCurrent->TimeStamp
+Solutions_PackML_DelayInSeconds = 3
+
+' Reset the Command Change Request and the respective Control Command when the Execution System acknowledges it
+If $Solutions_PackML.Status_StateRequested <> 0 Then
+	$Solutions_PackML.Command_CmdChangeRequest = 0
+	$Solutions_PackML.Command_CntrlCmd = 0
+End If
+
+' Set next step
+Select Case $Solutions_PackML.Status_StateCurrent
+
+	Case 0 'Undefined
+		$Solutions_PackML.Status_StateCurrentLabel = "Undefined"		
+		Call Solutions_PackML_ActingToWait(Solutions_PackML_TS, Solutions_PackML_DelayInSeconds, 9) '9=Aborted
+			
+	Case 1 'Clearing
+		$Solutions_PackML.Status_StateCurrentLabel = "Cleaning"		
+		Call Solutions_PackML_ActingToWait(Solutions_PackML_TS, Solutions_PackML_DelayInSeconds, 2) '2=Stopped
+		
+	Case 2 'Stopped
+		$Solutions_PackML.Status_StateCurrentLabel = "Stopped"
+		Call Solutions_PackML_WaitToActing(2, 15) '2=Reset; 15=Reseting
+	
+	Case 3 'Starting
+		$Solutions_PackML.Status_StateCurrentLabel = "Starting"
+		Call Solutions_PackML_ActingToWait(Solutions_PackML_TS, Solutions_PackML_DelayInSeconds, 6) '6=Execute
+	
+	Case 4 'Idle
+		$Solutions_PackML.Status_StateCurrentLabel = "Idle"
+		Call Solutions_PackML_WaitToActing(3, 3) '3=Start; 3=Starting
+			
+	Case 5 'Suspended
+		$Solutions_PackML.Status_StateCurrentLabel = "Suspended"
+		Call Solutions_PackML_WaitToActing(8, 14) '8=Unsuspend; 3=Unsuspending
+	
+	Case 6 'Execute
+		$Solutions_PackML.Status_StateCurrentLabel = "Execute"
+		Call Solutions_PackML_WaitToActing(5, 10) '5=Hold; 10=Holding
+		Call Solutions_PackML_WaitToActing(7, 13) '7=Suspend; 13=Suspending
+		Call Solutions_PackML_ActingToWait(Solutions_PackML_TS, 2*Solutions_PackML_DelayInSeconds, 16) '16=Completing
+		
+	Case 7 'Stopping
+		$Solutions_PackML.Status_StateCurrentLabel = "Stopping"
+		Call Solutions_PackML_ActingToWait(Solutions_PackML_TS, Solutions_PackML_DelayInSeconds, 2) '2=Stopped
+	
+	Case 8 'Aborting
+		$Solutions_PackML.Status_StateCurrentLabel = "Aborting"
+		Call Solutions_PackML_ActingToWait(Solutions_PackML_TS, Solutions_PackML_DelayInSeconds, 9) '9=Aborted
+	
+	Case 9 'Aborted
+		$Solutions_PackML.Status_StateCurrentLabel = "Aborted"
+		Call Solutions_PackML_WaitToActing(10, 1) '10=Clear; 1=Clearing
+	
+	Case 10 'Holding
+		$Solutions_PackML.Status_StateCurrentLabel = "Holding"
+		Call Solutions_PackML_ActingToWait(Solutions_PackML_TS, Solutions_PackML_DelayInSeconds, 11) '11=Held
+	
+	Case 11 'Held
+		$Solutions_PackML.Status_StateCurrentLabel = "Held"
+		Call Solutions_PackML_WaitToActing(6, 12) '6=Unhold; 12=Unholding
+		
+	Case 12 'UnHolding
+		$Solutions_PackML.Status_StateCurrentLabel = "Unholding"
+		Call Solutions_PackML_ActingToWait(Solutions_PackML_TS, Solutions_PackML_DelayInSeconds, 6) '6=Execute
+	
+	Case 13 'Suspending
+		$Solutions_PackML.Status_StateCurrentLabel = "Suspending"
+		Call Solutions_PackML_ActingToWait(Solutions_PackML_TS, Solutions_PackML_DelayInSeconds, 5) '5=Suspended
+	
+	Case 14 'Unsuspending
+		$Solutions_PackML.Status_StateCurrentLabel = "Unsuspending"
+		Call Solutions_PackML_ActingToWait(Solutions_PackML_TS, Solutions_PackML_DelayInSeconds, 6) '6=Execute
+	
+	Case 15 'Resetting
+		$Solutions_PackML.Status_StateCurrentLabel = "Resetting"
+		Call Solutions_PackML_ActingToWait(Solutions_PackML_TS, Solutions_PackML_DelayInSeconds, 4) '4=Idle
+	
+	Case 16 'Completing
+		$Solutions_PackML.Status_StateCurrentLabel = "Completing"
+		Call Solutions_PackML_ActingToWait(Solutions_PackML_TS, Solutions_PackML_DelayInSeconds, 17) '17=Complete
+	
+	Case 17 'Complete
+		$Solutions_PackML.Status_StateCurrentLabel = "Complete"
+		Call Solutions_PackML_WaitToActing(2, 15) '2=Reset; 15=Reseting
+
+End Select
+
+'From "many" to Stopping (1=Clearing; 2=Stopped; 7=Stopping; 8=Aborting; 9=Aborted)
+If $Solutions_PackML.Status_StateCurrent<>1 And $Solutions_PackML.Status_StateCurrent<>2 And $Solutions_PackML.Status_StateCurrent<>7 And $Solutions_PackML.Status_StateCurrent<>8 And $Solutions_PackML.Status_StateCurrent<>9 Then
+	Call Solutions_PackML_WaitToActing(4, 7) '4=Stop; 7=Stopping	
+End If
+
+'From "many" to Aborting (8=Aborting; 9=Aborted)
+If $Solutions_PackML.Status_StateCurrent<>8 And $Solutions_PackML.Status_StateCurrent<>9 Then
+	Call Solutions_PackML_WaitToActing(9, 8) '9=Abort; 8=Aborting
+End If
+
+
+
+
+'Solutions_OEE
+If $Solutions_OEE.Trigger=1 Then
+	Dim Solutions_OEE_Deviation
+	Solutions_OEE_Deviation = 0.2 'Max 20% Solutions_OEE_Deviation from the setpoint
+	
+	'Setup
+	$Solutions_OEE.OperationTime = 60 * 60 * 8 'seconds
+	$Solutions_OEE.TotalTime = 60 * 60 * 24 'seconds
+	$Solutions_OEE.MaximumSpeed = 120 / 60 'units/second
+	$Solutions_OEE.OEETarget = 0.60 '%
+	
+	'Measured
+	$Solutions_OEE.GoodParts = (1+(2*Solutions_OEE_Deviation*($Rand()-0.5))) * (32000) 'units	
+	$Solutions_OEE.Breakdowns = (1+(2*Solutions_OEE_Deviation*($Rand()-0.5))) * (60 * 20) 'seconds
+	$Solutions_OEE.LongStops = (1+(2*Solutions_OEE_Deviation*($Rand()-0.5))) * (60 * 50) 'seconds
+	$Solutions_OEE.ShortStops = (1+(2*Solutions_OEE_Deviation*($Rand()-0.5))) * (60 * 10) 'seconds
+	$Solutions_OEE.StartupRejects = (1+(2*Solutions_OEE_Deviation*($Rand()-0.5))) * (500) 'units
+	$Solutions_OEE.ProductionRejects = (1+(2*Solutions_OEE_Deviation*($Rand()-0.5))) * (1000) 'units
+
+	Call Solutions_OEE_Calculate()
+	
+	$Solutions_OEE.Trigger = 0
+End If	
+
+
+
+
+'Industries_Energy
+If $Industries_Energy.ModeManual=0 Then 'In Auto
+
+	$Industries_Energy.MixerCmd = 1
+	$Industries_Energy.MillingFault = 0
+	$Industries_Energy.MillingCmd = 1
+	$Industries_Energy.MillingFault = 0
+	$Industries_Energy.Tank1Volume = 25+25*($Simulation.SinWave+1)
+	$Industries_Energy.Tank2Volume = 25+25*($Simulation.CosWave+1)
+	
+Else
+	
+	If $Industries_Energy.MillingState<>0 Then	
+		$Industries_Energy.Tank1Volume = $Min(100, $Industries_Energy.Tank1Volume + 1)
+		If $Industries_Energy.Tank1Volume >= 100 Then $Industries_Energy.Tank2Volume = $Min(100, $Industries_Energy.Tank2Volume + 1)
+	Else
+		If $Industries_Energy.Tank2Volume<=0 Then $Industries_Energy.Tank1Volume = $Max(0, $Industries_Energy.Tank1Volume - 1)
+		$Industries_Energy.Tank2Volume = $Max(0, $Industries_Energy.Tank2Volume - 1)
+	End If	
+
+End If
+
+If $Industries_Energy.Tank1Volume >= 100 Then
+	$Industries_Energy.MixerFault = 1
+	If 	$Industries_Energy.Tank2Volume >= 100 Then
+		$Industries_Energy.MillingFault = 1
+	Else
+		$Industries_Energy.MillingFault = 0
+	End If
+Else
+	$Industries_Energy.MixerFault = 0
+End If	
+
+$Industries_Energy.MillingState = $Industries_Energy.MillingCmd
+$Industries_Energy.MixerState = $Industries_Energy.MixerCmd
+
+$Industries_Energy.ProductionTarget = 0.3 * DateDiff("s", "01/01/" & $Year, Now)
+If $Industries_Energy.MillingState<>0 Then $Industries_Energy.Production = $Industries_Energy.Production + 1
+
+
+
+
+'Industries_OvenFurnace
+If $Industries_OvenFurnace.ModeManual=0 Then 'In Auto
+	If $Industries_OvenFurnace.Temperature >= 1900 Then $Industries_OvenFurnace.FurnaceCmd = 0
+	If $Industries_OvenFurnace.Temperature <= 1500 Then $Industries_OvenFurnace.FurnaceCmd = 1
+End If
+
+$Industries_OvenFurnace.FurnaceState = $Industries_OvenFurnace.FurnaceCmd
+
+If $Industries_OvenFurnace.FurnaceState=0 Then
+	$Industries_OvenFurnace.Temperature = $Max(100, $Industries_OvenFurnace.Temperature-20)
+Else
+	$Industries_OvenFurnace.Temperature = $Min(2000, $Industries_OvenFurnace.Temperature+20)
+End If
+
+If $Industries_OvenFurnace.Temperature >=1800 Then
+	$Industries_OvenFurnace.FurnaceFault = 1
+Else
+	$Industries_OvenFurnace.FurnaceFault = 0	
+End If	
+
+
+
+'Industries_Water
+$Industries_Water.Pressure = 100 * $Rand()
+$Industries_Water.Level1 = 50 * ($Simulation.CosWave+1)
+$Industries_Water.Level2 = 50 * ($Simulation.SinWave+1)
+$Industries_Water.Level3 = ($Industries_Water.Level1 + $Industries_Water.Level2)/2
+If $Industries_Water.Level1>=95 Then $Industries_Water.Pump1 = 0
+If $Industries_Water.Level1<=5 Then $Industries_Water.Pump1 = 1
+If $Industries_Water.Level2>=95 Then $Industries_Water.Pump2 = 0
+If $Industries_Water.Level2<=5 Then $Industries_Water.Pump2 = 1
+If $Industries_Water.Level3>=80 Then
+	$Industries_Water.Pump3 = 0
+	$Industries_Water.Pump4 = 0
+End If	
+If $Industries_Water.Level3<=15 Then
+	$Industries_Water.Pump3 = 1
+	$Industries_Water.Pump4 = 1
+End If	
+
+
+'Industries_OilAndGas
+If $Industries_OilAndGas.State=0 Then
+	$Industries_OilAndGas.OilFlow = $Max(0, $Industries_OilAndGas.OilFlow-10)
+	$Industries_OilAndGas.OilPressure = $Max(0, $Industries_OilAndGas.OilPressure-1)
+Else
+	$Industries_OilAndGas.OilFlow = 500*($Simulation.SinWave+1)
+	$Industries_OilAndGas.OilPressure = 60*($Simulation.CosWave+1)
+End If
+
+
+'Industries_Food
+Dim Industries_Food_Id
+If $Industries_Food.ModeManual = 0 Then 'Auto
+
+	Select Case $Industries_Food.Step
+		Case 0 'Filling tanks
+			$Industries_Food.Msg = "Filling Main Tank..."
+			$Industries_Food[1].Valve = 1
+			$Industries_Food[2].Valve = 1
+			$Industries_Food[3].Valve = 1
+			$Industries_Food[4].Valve = 1
+			$Industries_Food[5].Valve = 1
+			$Industries_Food[6].Valve = 1
+			$Industries_Food[7].Valve = 0
+			$Industries_Food[8].Valve = 0
+			$Industries_Food[9].Valve = 0
+			$Industries_Food[1].Motor = 0
+			$Industries_Food[2].Motor = 0
+			$Industries_Food[3].Motor = 0
+			$Industries_Food[4].Motor = 0
+			$Industries_Food[1].Level = $Max(0, $Industries_Food[1].Level-2)
+			$Industries_Food[2].Level = $Max(0, $Industries_Food[2].Level-2)
+			$Industries_Food[3].Level = $Max(0, $Industries_Food[3].Level-2)
+			$Industries_Food[4].Level = $Min(300, $Industries_Food[4].Level+6)
+			If $Industries_Food[4].Level>=300 Then $Industries_Food.Step=1
+		Case 1 'Mixing
+			$Industries_Food.Msg = "Mixing..."
+			$Industries_Food[1].Valve = 0
+			$Industries_Food[2].Valve = 0
+			$Industries_Food[3].Valve = 0
+			$Industries_Food[4].Valve = 0
+			$Industries_Food[5].Valve = 0
+			$Industries_Food[6].Valve = 0
+			$Industries_Food[7].Valve = 0
+			$Industries_Food[8].Valve = 0
+			$Industries_Food[9].Valve = 0
+			$Industries_Food[1].Motor = 1
+			$Industries_Food[2].Motor = 0
+			$Industries_Food[3].Motor = 0
+			$Industries_Food[4].Motor = 0
+			$Industries_Food[1].Level = $Min(100, $Industries_Food[1].Level+2)
+			$Industries_Food[2].Level = $Min(100, $Industries_Food[2].Level+2)
+			$Industries_Food[3].Level = $Min(100, $Industries_Food[3].Level+2)
+			If $Industries_Food[1].Level+$Industries_Food[2].Level+$Industries_Food[3].Level>=300 Then $Industries_Food.Step=2
+		Case Else 'Filling cans
+			$Industries_Food.Msg = "Filling cans..."
+			$Industries_Food[1].Valve = 0
+			$Industries_Food[2].Valve = 0
+			$Industries_Food[3].Valve = 0
+			$Industries_Food[4].Valve = 0
+			$Industries_Food[5].Valve = 0
+			$Industries_Food[6].Valve = 0
+			$Industries_Food[1].Motor = 0
+			$Industries_Food[9].Valve = 0
+			If $Industries_Food.counter<=10 Then
+				$Industries_Food[7].Valve = 0
+				$Industries_Food[8].Valve = 0
+				$Industries_Food[2].Motor = 1
+				$Industries_Food[3].Motor = 1
+				$Industries_Food[4].Motor = 0
+			Else
+				If $Industries_Food.Step<=6 Then $Industries_Food[7].Valve = 1
+				If $Industries_Food.Step<=6 Then $Industries_Food[8].Valve = 1
+				$Industries_Food[2].Motor = 0
+				$Industries_Food[3].Motor = 0
+				If $Industries_Food.Step>=3 Then $Industries_Food[4].Motor = 1
+			End If	
+			$Industries_Food[4].Level = $Max(0, $Industries_Food[4].Level-3)
+			If $Industries_Food.counter<20 Then
+				$Industries_Food.counter = $Industries_Food.counter+1
+			Else
+				$Industries_Food.counter = 0
+				$Industries_Food.Step = $Industries_Food.Step+1
+				If $Industries_Food.Step>=4 Then $Industries_Food.Production = $Industries_Food.Production+1
+			End If
+			If $Industries_Food.Step>=8 Then $Industries_Food.Step = 0
+	End Select
+
+Else
+	
+	$Industries_Food.Msg = "Process in Manual Mode"
+	$Industries_Food.Step = 0
+	For Industries_Food_Id=1 To 3
+		If $Industries_Food[Industries_Food_Id].Valve=0 Then
+			$Industries_Food[Industries_Food_Id].Level = $Min(100, $Industries_Food[Industries_Food_Id].Level+1)
+		Else
+				$Industries_Food[Industries_Food_Id].Level = $Max(0, $Industries_Food[Industries_Food_Id].Level-1)
+		End If
+	Next
+	
+End If
+
+
+'Industries_Wind
+Dim Industries_Wind_Id
+For Industries_Wind_Id=1 To $Industries_Wind->Size
+
+	$Industries_Wind[Industries_Wind_Id].Wind = 20+(5*Industries_Wind_Id) + 7*($Simulation.SinWave+1)
+	
+	If ($Industries_Wind[Industries_Wind_Id].Brake=0) And ($Industries_Wind[Industries_Wind_Id].Fault=0) Then
+	
+		If $Industries_Wind[Industries_Wind_Id].Angle<360  Then
+			$Industries_Wind[Industries_Wind_Id].Angle= $Industries_Wind[Industries_Wind_Id].Angle + ($Industries_Wind[Industries_Wind_Id].Wind/2)
+		Else
+			$Industries_Wind[Industries_Wind_Id].Angle = 0
+		End If
+		
+		If $Industries_Wind[Industries_Wind_Id].Speed<8 Then
+			$Industries_Wind[Industries_Wind_Id].Speed = $Industries_Wind[Industries_Wind_Id].Speed+1
+		Else	
+			$Industries_Wind[Industries_Wind_Id].Speed = $Industries_Wind[Industries_Wind_Id].Wind/3
+		End If	
+		
+		$Industries_Wind[Industries_Wind_Id].Temperature= (20*Industries_Wind_Id)+50*($Simulation.CosWave+1)
+		
+		If $Industries_Wind[Industries_Wind_Id].Power<1.5 Then
+			$Industries_Wind[Industries_Wind_Id].Power = $Industries_Wind[Industries_Wind_Id].Power+0.1
+		Else
+			If $Industries_Wind[Industries_Wind_Id].Wind<=34 Then
+				$Industries_Wind[Industries_Wind_Id].Power = 1+Sin((270+(5*$Industries_Wind[Industries_Wind_Id].Wind))*$Pi()/180) - 0.1*$Rand()
+			Else
+				$Industries_Wind[Industries_Wind_Id].Power = 1.9 - 0.1*$Rand()
+			End If	
+		End If	
+		
+	Else
+	
+		$Industries_Wind[Industries_Wind_Id].Speed = $Max(0, $Industries_Wind[Industries_Wind_Id].Speed-1)
+		$Industries_Wind[Industries_Wind_Id].Temperature= $Max(0, $Industries_Wind[Industries_Wind_Id].Temperature-1)
+		$Industries_Wind[Industries_Wind_Id].Power= $Max(0, $Industries_Wind[Industries_Wind_Id].Power-0.1)
+
+	End If	
+	
+Next
+
+
+'Industries_Solar
+Dim Industries_Solar_Id, Industries_Solar_SunLight, Industries_Solar_Total
+
+If $Industries_Solar.Compass<359 Then
+	$Industries_Solar.Compass = $Industries_Solar.Compass+1
+Else
+	$Industries_Solar.Compass = 0
+End If
+
+Industries_Solar_SunLight = 0.7+$Max(-0.7,$Cos($Industries_Solar.Compass*$Pi()/180))
+
+Industries_Solar_Total = 0
+For Industries_Solar_Id=1 To $Industries_Solar->Size
+	If $Mod(Industries_Solar_Id,2)=0 Then
+		$Industries_Solar[Industries_Solar_Id].Power = ((9-Industries_Solar_Id)+($Simulation.SinWave+1))/1.7*Industries_Solar_SunLight
+	Else
+		$Industries_Solar[Industries_Solar_Id].Power = ((9-Industries_Solar_Id)+($Simulation.CosWave+1))/1.7*Industries_Solar_SunLight
+	End If	
+	Industries_Solar_Total = Industries_Solar_Total + $Industries_Solar[Industries_Solar_Id].Power
+Next
+$Industries_Solar[0].Power = Industries_Solar_Total
+
+'Industries_Process
+Dim Industries_Process_Id
+For Industries_Process_Id=1 To $Industries_Process->Size
+	$Industries_Process[Industries_Process_Id].Analog = 10*Industries_Process_Id + $Simulation.SinWave
+Next
+
+
+'Industries_ControlPanel
+If ($Industries_ControlPanel.Power=0) Or ($Industries_ControlPanel.GenSel=0) Then 
+	$Industries_ControlPanel.Fault = 0
+	$Industries_ControlPanel.OverLoad = 0
+	$Industries_ControlPanel.PV = $Max(0, $Industries_ControlPanel.PV-1)
+Else
+	If $Rand()>0.99 Then
+		$Industries_ControlPanel.Fault = 1
+	Else
+		$Industries_ControlPanel.Fault = 0
+	End If	
+	If $Industries_ControlPanel.PV>=90 Then
+		$Industries_ControlPanel.OverLoad = 1
+	Else
+		$Industries_ControlPanel.OverLoad = 0
+	End If
+	If $Industries_ControlPanel.ModeManual=0 Then
+		$Industries_ControlPanel.PV = 50 + 25*($Simulation.SinWave+1)
+	Else
+		$Industries_ControlPanel.PV = $Industries_ControlPanel.SP
+	End If
+	$Industries_ControlPanel.Angle = $Industries_ControlPanel.Angle+($Industries_ControlPanel.PV/5)
+End If
+
+'Industries_Wastewater
+Dim Industries_Wastewater_Id
+For Industries_Wastewater_Id=1 To $Industries_Wastewater->Size
+	If ($Industries_Wastewater[Industries_Wastewater_Id].Fault=1) Then
+		$Industries_Wastewater[Industries_Wastewater_Id].State = 0
+	Else
+		$Industries_Wastewater[Industries_Wastewater_Id].State = $Industries_Wastewater[Industries_Wastewater_Id].Cmd
+	End If
+	If $Industries_Wastewater[Industries_Wastewater_Id].State=0 Then
+		$Industries_Wastewater[Industries_Wastewater_Id].FlowAeration = $Max(0, $Industries_Wastewater[Industries_Wastewater_Id].FlowAeration-10)
+		$Industries_Wastewater[Industries_Wastewater_Id].FlowRAS = $Max(0, $Industries_Wastewater[Industries_Wastewater_Id].FlowRAS-10)
+		$Industries_Wastewater[Industries_Wastewater_Id].FlowWAS = $Max(0, $Industries_Wastewater[Industries_Wastewater_Id].FlowWAS-10)
+	Else
+		$Industries_Wastewater[Industries_Wastewater_Id].FlowAeration = 30 + (10*Industries_Wastewater_Id) + 15*(1+$Simulation.SinWave)
+		$Industries_Wastewater[Industries_Wastewater_Id].FlowRAS = 50 + (10*Industries_Wastewater_Id) + 15*(1+$Simulation.CosWave)
+		$Industries_Wastewater[Industries_Wastewater_Id].FlowWAS = 50 + (10*Industries_Wastewater_Id) + 15*(1+$Simulation.SinWave)	
+	End If
+Next
+$Industries_WasteWater[2].Fault = 1
