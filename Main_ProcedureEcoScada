@@ -1,0 +1,295 @@
+Option Explicit
+'Keep the Option Explicit statement in the first line of this interface.
+
+'Procedures with global scope can be implemented here.
+'Global variables are NOT supported in this interface.
+
+Function OpenScreen(NavScreenName, NavLabel)
+	Dim NavGroup, NavScreen, arrNavScreenName
+	$sysLocal.NavScreen = NavScreenName
+	If InStr(NavScreenName, "_")>0 Then
+		arrNavScreenName = Split(NavScreenName, "_")
+		NavGroup = arrNavScreenName(0)
+		NavScreen = arrNavScreenName(1)
+		$Open("Menu" & NavGroup)
+	Else
+		NavGroup = NavScreenName
+		NavScreen = NavScreenName
+	End If
+	$Open(NavScreenName)
+	If NavLabel="" Then NavLabel = NavScreen
+	$sysLocal.NavGroup = NavGroup
+	$sysLocal.NavScreen = NavScreen
+	$sysLocal.NavLabel = NavLabel
+	$sysLocal.NavScreenName = NavScreenName
+End Function
+
+Function RunSimulation()
+	Dim Period, Counter, CounterNorm, ret
+	Period = 400 'tenths of ms
+	Counter = $Mod(100*Timer(), $Num(Period))
+	CounterNorm = 100*$Num(Counter)/$Num(Period)
+	'Ramp
+	If $Num(CounterNorm)<$Simulation.Ramp Then
+		$Simulation.CycleCounter = $Simulation.CycleCounter+1
+		ret = 1
+	Else
+		ret = 0
+	End If
+	$Simulation.Ramp = $Num(CounterNorm)
+	'RampSin
+	$Simulation.RampSin = $Sin($Pi()*$Simulation.Ramp/200)
+	'SinWave
+	$Simulation.SinWave = $Sin($Pi()*$Simulation.Ramp/50)
+	'CosWave
+	$Simulation.CosWave = $Cos($Pi()*$Simulation.Ramp/50)
+	RunSimulation = ret
+End Function
+
+
+Function GetOEM()
+	Dim ps, os
+	ps = $GetProductPath() & "BIN\Program Settings.ini"
+	$OEM.ProductName = $GetPrivateProfileString("OEM", "ProductName", "Studio", ps)
+	$OEM.ProductVer = $GetPrivateProfileString("Install", "Version", "1.0", ps)
+	$OEM.URL = $GetPrivateProfileString("OEM", "url", "", ps)
+	os = $GetProductPath() & "BIN\OEMSettings.ini"
+	$OEM.MobileAccess = Replace($StrRChr($GetPrivateProfileString("Install", "MAInstallDir", "", os), "\"), "\", "")
+End Function
+
+
+
+Function GetHomeImages(arrHomeImageId, arrHomeImageMessage)
+	Dim sql, numCur, numRows, row, ret
+	sql = "SELECT * FROM HomeImages ORDER BY HomeImageId ASC"
+	numCur = $DBCursorOpenSQL("DB", sql)
+	numRows = $DBCursorRowCount(numCur)
+	If numRows>0 Then
+		ReDim arrHomeImageId(numRows)
+		ReDim arrHomeImageMessage(numRows)
+		For row=1 To numRows
+			arrHomeImageId(row) = $DBCursorGetValue(numCur, "HomeImageId")
+			arrHomeImageMessage(row) = $DBCursorGetValue(numCur, "HomeImageMessage")
+			$DBCursorNext(numCur)
+		Next
+	End If	
+	$DBCursorClose(numCur)
+	ret = $Num(numRows)
+	GetHomeImages = ret
+End Function
+
+Function SetHomeImage(numImages, arrHomeImageId, arrHomeImageMessage, PreviousFlag)
+	Dim HomeImageIndex
+	HomeImageIndex = $syslocal.HomeImageIndex
+	If $Num(numImages)>0 Then
+		If PreviousFlag=0 Then 'Go to next
+			If $Num(HomeImageIndex)<$Num(numImages) Then
+				HomeImageIndex = $Num(HomeImageIndex)+1
+			Else
+				HomeImageIndex = 1
+			End If
+		Else 'Go to previous
+			If $Num(HomeImageIndex)>1 Then
+				HomeImageIndex = $Num(HomeImageIndex)-1
+			Else
+				HomeImageIndex = $Num(numImages)
+			End If
+		End If	
+		$sysLocal.HomeImageIndex = HomeImageIndex
+		$sysLocal.HomeImageId = arrHomeImageId(HomeImageIndex)
+		$sysLocal.HomeImageMessage = arrHomeImageMessage(HomeImageIndex)
+	End If		
+End Function
+
+Function ChangeLanguage(Language)
+	Dim code, languageName
+	Select Case Language
+		Case "us"
+			languageName = "English"
+			code = 1033
+		Case "cn"
+			languageName = "Chinese"
+			code = 2052
+		Case "fr"
+			languageName = "French"
+			code = 1036
+		Case "de"
+			languageName = "German"
+			code = 1031
+		Case "it"
+			languageName = "Italian"
+			code = 1040
+		Case "jp"
+			languageName = "Japanese"
+			code = 1041
+		Case "br"
+			languageName = "Portuguese"
+			code = 1046
+		Case "in"
+			languageName = "Punjab"
+			code = 1094
+		Case "ru"
+			languageName = "Russian"
+			code = 1049
+		Case "mx"
+			languageName = "Spanish"
+			code = 2058
+	End Select
+	$sysLocal.LanguageName = languageName
+	$sysLocal.Languagecode = code
+	$SetLanguage(code)	
+End Function
+
+
+Function DateDiffSec(date1, date2)
+	Dim fDate1, fDate2, ret
+	fDate1 = $StrGetElement(date1, ".", 1)
+	fDate2 = $StrGetElement(date2, ".", 1)
+	If IsDate(fDate1)=True And IsDate(fDate2)=True Then
+		ret = DateDiff("s", fDate1, fDate2)
+	Else
+		ret = 0
+	End If
+	DateDiffSec = ret
+End Function
+
+
+Function ElapsedTime(TimeStamp, DelayInSeconds)
+	Dim TS, ret
+	TS = $StrGetElement(TimeStamp, ".", 1)
+	ret = 0
+	If IsDate(TS) Then
+		If DateDiff("s", TS, Now)>$Num(DelayInSeconds) Then ret = 1
+	End If	
+	ElapsedTime = ret
+End Function
+
+Function Solutions_PackML_WaitToActing(Command_CntrlCmd, Status_StateCurrent)
+	If $Solutions_PackML.Command_CmdChangeRequest=0 Then $Solutions_PackML.Status_StateRequested = 0
+	If $Solutions_PackML.Command_CntrlCmd=Command_CntrlCmd Then
+		$Solutions_PackML.Status_StateRequested = 1
+		$Solutions_PackML.Status_StateChangeInProgress = 1
+		$Solutions_PackML.Status_StateCurrent = Status_StateCurrent
+	End If
+End Function
+
+Function Solutions_PackML_ActingToWait(TS, DelayInSeconds, Status_StateCurrent)
+	$Solutions_PackML.Status_StateChangeInProgress = 1
+	If ElapsedTime(TS, DelayInSeconds)<>0 Then
+		$Solutions_PackML.Status_StateChangeInProgress = 0
+		$Solutions_PackML.Status_StateCurrent = Status_StateCurrent
+	End If
+End Function
+
+Function Solutions_OEE_Calculate()
+	Dim OperationTime, TotalTime, MaximumSpeed
+	Dim GoodParts, BreakDowns, LongStops, ShortStops,StartupRejects, ProductionRejects
+	Dim IdleTime, MissedSpeed, ActualSpeed, BadParts, TotalParts, AvailabilityLoss, ReducedSpeed, PerformanceLoss, QualityLoss, Availability, Performance, Quality, OEE, OEETarget
+	Dim UpTime, UpTimeFull, TimeLessAvailabilityLoss, TimeLessPerformanceLoss
+	
+	'Tags to Variables
+	OperationTime = $Solutions_OEE.OperationTime
+	TotalTime = $Solutions_OEE.TotalTime
+	MaximumSpeed = $Solutions_OEE.MaximumSpeed
+	GoodParts = $Solutions_OEE.GoodParts
+	LongStops = $Solutions_OEE.LongStops
+	BreakDowns = $Solutions_OEE.Breakdowns
+	ShortStops = $Solutions_OEE.ShortStops
+	StartupRejects = $Solutions_OEE.StartupRejects
+	ProductionRejects = $Solutions_OEE.ProductionRejects
+
+	'Calculated
+	IdleTime = TotalTime - OperationTime
+	
+	UpTime = OperationTime - BreakDowns - LongStops
+	UpTimeFull = UpTime - ShortStops
+	If $Num(UpTimeFull)<>0 Then
+		ActualSpeed = (GoodParts + StartupRejects + ProductionRejects) / UpTimeFull
+	Else
+		ActualSpeed = 0
+	End If
+	MissedSpeed = MaximumSpeed - ActualSpeed
+
+	BadParts = StartupRejects + ProductionRejects 
+	TotalParts = BadParts + GoodParts
+	
+	AvailabilityLoss = LongStops + BreakDowns
+	
+	If $Num(ActualSpeed)=0 Or $Num(MaximumSpeed)=0 Then
+		ReducedSpeed = 0
+	Else
+		ReducedSpeed = (GoodParts / ActualSpeed) - (GoodParts / MaximumSpeed)
+	End If
+	PerformanceLoss = 	ReducedSpeed + ShortStops
+
+	If $Num(ActualSpeed)<>0 Then
+		QualityLoss = (StartupRejects + ProductionRejects) / ActualSpeed
+	Else
+		QualityLoss = 0
+	End If	
+	
+	TimeLessAvailabilityLoss = OperationTime - AvailabilityLoss
+	TimeLessPerformanceLoss = TimeLessAvailabilityLoss - PerformanceLoss
+	
+	If $Num(OperationTime)<>0 Then
+		Availability = 1 - (AvailabilityLoss / OperationTime)
+	Else
+		Availability = 0
+	End If	
+	If $Num(TimeLessAvailabilityLoss)<>0 Then
+		Performance = 1 - (PerformanceLoss / TimeLessAvailabilityLoss)
+	Else
+		Performance = 0
+	End If
+	If $Num(TimeLessPerformanceLoss)<>0 Then
+		Quality = 1 - (QualityLoss / TimeLessPerformanceLoss)
+	Else
+		Quality = 0
+	End If
+	OEE = Availability * Performance * Quality
+			
+	'Variables to Tags
+	$Solutions_OEE.IdleTime = IdleTime
+	$Solutions_OEE.MissedSpeed = MissedSpeed
+	$Solutions_OEE.ActualSpeed = ActualSpeed
+	$Solutions_OEE.BadParts = BadParts
+	$Solutions_OEE.TotalParts = TotalParts
+	$Solutions_OEE.AvailabilityLoss = AvailabilityLoss
+	$Solutions_OEE.ReducedSpeed = ReducedSpeed
+	$Solutions_OEE.PerformanceLoss = PerformanceLoss
+	$Solutions_OEE.QualityLoss = QualityLoss
+	$Solutions_OEE.Availability = Availability
+	$Solutions_OEE.Performance = Performance
+	$Solutions_OEE.Quality = Quality
+	$Solutions_OEE.OEE = OEE
+	
+End Function
+
+
+Function Industries_Food_Popup(EquipType, EquipId)
+	Dim title, msg, ret, cmdFlag
+	
+	title = "Food"
+	
+	cmdFlag = True
+	If $Industries_Food.ModeManual=0 Then
+		msg = $Ext("The process is in Automatic Mode." & vbCrLf & vbCrLf & "Do you want to switch the process to Manual Mode to control the equipment manually?")
+		ret = MsgBox(msg, vbYesNo+vbExclamation, title)
+		If ret<>vbYes Then
+			cmdFlag = False
+		Else
+			$Industries_Food.ModeManual = 1
+		End If		
+	End If
+
+	If cmdFlag=True Then
+		Select Case EquipType
+			Case "Valve"
+				$Industries_Food_ValveId = EquipId
+			Case "Motor"
+				$Industries_Food_MotorId = EquipId
+		End Select
+		$Open("Industries_Food_popup" & EquipType)
+	End If
+			
+End Function
