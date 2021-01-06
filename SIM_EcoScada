@@ -18,7 +18,7 @@ $Features_Animations.HyperLinkWeb = $OEM.URL
 Dim Industries_Machinery_PartsProgress, Industries_Machinery_TimeProgress
 If $Industries_Machinery.State = 1 Then
 	$Industries_Machinery.Ramp = $Simulation.Ramp
-	$Industries_Machinery.SinWave = $Simulation.SinWave
+	$Industries_Machinery.SinWave = $Simulation.SinWave 
 	If $Num(Industries_Machinery_Ramp)>=$Industries_Machinery.Ramp Then
 		$Industries_Machinery.PartsProducedActual = $Industries_Machinery.PartsProducedActual+1
 		$Industries_Machinery.LifeTimeProduction = $Industries_Machinery.LifeTimeProduction +1
